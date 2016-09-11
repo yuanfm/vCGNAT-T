@@ -1,0 +1,59 @@
+heat_template_version: 2014-10-16
+
+description: This template deploys standard TMOS data security group.
+
+resources:
+
+   bigip_data_security_group:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      description: security group rules for data interfaces
+      name: bigip_data_security_group
+      rules: 
+        - protocol: icmp
+          direction: ingress
+        - protocol: ipv6-icmp
+          ethertype: IPv6
+          direction: ingress
+        - protocol: icmpv6
+          ethertype: IPv6
+          direction: ingress
+        - protocol: icmp
+          direction: egress
+        - protocol: ipv6-icmp
+          ethertype: IPv6
+          direction: egress
+        - protocol: icmpv6
+          ethertype: IPv6
+          direction: egress
+        - protocol: tcp
+          direction: ingress
+        - protocol: tcp
+          ethertype: IPv6
+          direction: ingress
+        - protocol: tcp
+          direction: egress
+        - protocol: tcp
+          ethertype: IPv6
+          direction: egress
+        - protocol: udp
+          direction: ingress
+        - protocol: udp
+          ethertype: IPv6
+          direction: ingress
+        - protocol: udp
+          direction: egress
+        - protocol: udp
+          ethertype: IPv6
+          direction: egress
+        - protocol: ipv6-route
+          ethertype: IPv6 
+          direction: ingress
+        - protocol: ipv6-route
+          ethertype: IPv6
+          direction: egress
+
+outputs:
+   data_security_group_id:
+     description: Get resource id of this security group
+     value: { get_resource: bigip_data_security_group }
