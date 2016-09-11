@@ -153,9 +153,9 @@ resources:
       network: {get_param: network_2 }
       security_groups: [{ get_attr: [cgnat_data_security_group, data_security_group_id] }]
   cgnat_data_security_group:
-    type: http://10.1.10.80/bigip_data_security_group.yaml
+    type: https://github.com/yuanfm/vCGNAT-Telstra/blob/my-branch/bigip_data_security_group.yaml
   cgnat_mgmt_security_group:
-    type: http://10.1.10.80/bigip_mgmt_security_group.yaml
+    type: https://github.com/yuanfm/vCGNAT-Telstra/blob/my-branch/bigip_mgmt_security_group.yaml
   ve_instance:
     type: OS::Nova::Server
     properties:
@@ -244,8 +244,9 @@ resources:
       image: cirros
       flavor: m1.small
       key_name: AdminKey
-      network: Openstack_Mgmt
-      security_groups: bigip_mgmt_security_group
+      networks: 
+        - network: Openstack_Mgmt
+      security_groups: cgnat_mgmt_security_group
       user_data_format: RAW
       user_data:
         str_replace:

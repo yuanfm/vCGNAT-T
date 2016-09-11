@@ -1,5 +1,5 @@
 heat_template_version: 2015-04-30
-description: AutoScale policy for F5 BIG-IP vCGNAT VNF on high CPU load
+description: Resource group policy for deploying 2 F5 BIG-IP vCGNAT VNF in scale
 
 parameters:
   ve_image:
@@ -36,11 +36,11 @@ parameters:
     label: F5 VE Root User Password
     description: Password used to perform image import services
     hidden: true
-  license:
+  license_list:
     type: comma_delimited_list
     label: Primary VE License Base Key list
     description: F5 TMOS License Basekey list 
-    default: [UWCMB-DSGTF-GBFMR-USPAZ-SRPAXIV, JXUAY-BCIZH-YULVQ-ILTSD-ECCNYHV, YFJOO-ZRWFW-DKAFB-ZHAKI-OIFEPTM]
+    default: ["GMFLT-SORUG-ADVJT-NYKYC-YRVHYXR", "GREUV-NOVKG-GVLZZ-QAVIE-QQZOMGA", "ZULOY-JYIUA-WGWLV-DITXY-UZWEMNT"]
     hidden: true
   external_network:
     type: string
@@ -83,8 +83,13 @@ parameters:
   default_gateway:
     type: string
     label: Default Gateway IP
-    default: None
     description: Upstream Gateway IP Address for VE instances
+    default: 10.255.255.1
+  cluster_size:
+    type: number
+    label: Cluster size
+    description: Number of instances in cluster.
+    default: 1
 
 parameter_groups:
 - parameters:
@@ -96,7 +101,7 @@ parameter_groups:
   - admin_password
   - root_password
 - parameters:
-  - license
+  - license_list
 - parameters:
   - external_network
   - mgmt_network
@@ -105,52 +110,34 @@ parameter_groups:
   - network_2
   - network_2_name
   - default_gateway  
+  - cluster_size
 
-resources:  
+
+resources:
   cgn_group:
     type: OS::Heat::AutoScalingGroup
     properties:
-      cooldown: 60
-      desired_capacity: 2
-      max_size: 3
+      cooldown: 120
+      desired_capacity: { get_param: cluster_size }
+      max_size: 2
       min_size: 1
-      resource:
-        type: OS::Nova::Server::CGNAT
+      resource_def:
+        type: Lib::JOY::CGN
         properties:
           ve_flavor: {get_param: ve_flavor}
           ve_image: {get_param: ve_image}
           f5_ve_os_ssh_key: {get_param: f5_ve_os_ssh_key}
           admin_password: {get_param: admin_password}
           root_password: {get_param: root_password}
-          license: {get_param: license}
+          license: {get_param: license_list}
           external_network: {get_param: external_network}
           mgmt_network: {get_param: mgmt_network}
           network_1: {get_param: network_1}
           network_1_name: {get_param: network_1_name}
-          network_2: {get_param: network_1_name}
-          network_2_name: {get_param: network_2}
-          default_gateway: {get_param: network_2_name}
+          network_2: {get_param: network_2}
+          network_2_name: {get_param: network_2_name}
+          default_gateway: {get_param: default_gateway}
 
-  scaleup_policy:
-    type: OS::Heat::ScalingPolicy
-    properties:
-      adjustment_type: change_in_capacity
-      auto_scaling_group_id: { get_resource: cgn_group }
-      cooldown: 60
-      scaling_adjustment: 1
-
-  cpu_alarm_high:
-    type: OS::Ceilometer::Alarm
-    properties:
-      meter_name: cpu_util
-      statistic: avg
-      period: 60
-      evaluation_periods: 1
-      threshold: 50
-      alarm_actions:
-        - {get_attr: [scaleup_policy, alarm_url]}
-      comparison_operator: gt
-  
   cgn_scaleup_policy:
     type: OS::Heat::ScalingPolicy
     properties:

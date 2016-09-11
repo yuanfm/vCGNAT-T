@@ -2,4 +2,4 @@ heat_template_version: 2015-04-30
 description: Environment setting to enfold the single BIG-IP vCGNAT VNF server resource definition
 
 resource_registry:  
-    "OS::Nova::Server::CGNAT":  https://github.com/yuanfm/vCGNAT-Telstra/blob/my-branch/StandaloneCGNAT.yaml
+    "Lib::JOY::CGN": https://github.com/yuanfm/vCGNAT-Telstra/blob/my-branch/deploy_vcgnat_standalone_3nic_peter_chai.yml

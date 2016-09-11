@@ -108,9 +108,9 @@ parameter_groups:
 
 resources:
   bigip_data_security_group:
-    type: http://10.1.10.80/bigip_data_security_group.yaml
+    type: https://github.com/yuanfm/vCGNAT-Telstra/blob/my-branch/bigip_data_security_group.yaml
   bigip_mgmt_security_group:
-    type: http://10.1.10.80/bigip_mgmt_security_group.yaml
+    type: https://github.com/yuanfm/vCGNAT-Telstra/blob/my-branch/bigip_mgmt_security_group.yaml
   mgmt_port:
     type: OS::Neutron::Port
     properties:

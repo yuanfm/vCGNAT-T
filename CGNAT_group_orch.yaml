@@ -36,11 +36,11 @@ parameters:
     label: F5 VE Root User Password
     description: Password used to perform image import services
     hidden: true
-  license:
+  license_list:
     type: comma_delimited_list
     label: Primary VE License Base Key list
     description: F5 TMOS License Basekey list 
-    default: [IGHZR-RGJDH-VHQZN-MOCHK-MPECVMG, JDTUG-ZPJYE-AYWWQ-CKDKD-UXZHRHI, ZZSEN-DOEFJ-YETLK-XDSUJ-VHWDKKQ]
+    default: ["GMFLT-SORUG-ADVJT-NYKYC-YRVHYXR", "GREUV-NOVKG-GVLZZ-QAVIE-QQZOMGA", "ZULOY-JYIUA-WGWLV-DITXY-UZWEMNT"]
     hidden: true
   external_network:
     type: string
@@ -83,8 +83,8 @@ parameters:
   default_gateway:
     type: string
     label: Default Gateway IP
-    default: None
     description: Upstream Gateway IP Address for VE instances
+    default: 10.255.255.1
   cluster_size:
     type: number
     label: Cluster size
@@ -101,7 +101,7 @@ parameter_groups:
   - admin_password
   - root_password
 - parameters:
-  - license
+  - license_list
 - parameters:
   - external_network
   - mgmt_network
@@ -126,7 +126,7 @@ resources:
           f5_ve_os_ssh_key: {get_param: f5_ve_os_ssh_key}
           admin_password: {get_param: admin_password}
           root_password: {get_param: root_password}
-          license: {get_param: license}
+          license: {get_param: license_list}
           external_network: {get_param: external_network}
           mgmt_network: {get_param: mgmt_network}
           network_1: {get_param: network_1}
