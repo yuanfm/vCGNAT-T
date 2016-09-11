@@ -1,0 +1,403 @@
+heat_template_version: 2015-04-30
+description: Single F5 BIG-IP vCGNAT VNF server resource launch defninition
+
+parameters:
+  ve_image:
+    type: string
+    label: F5 VE Image
+    description: The image to be used on the compute instance.
+    constraints:
+      - custom_constraint: glance.image 
+  ve_flavor:
+    type: string
+    label: F5 VE Flavor
+    description: Type of instance (flavor) to be used for the VE.
+    default: m1.medium
+    constraints:
+      - custom_constraint: nova.flavor
+  use_config_drive:
+    type: boolean
+    label: Use Config Drive
+    description: Use config drive to provider meta and user data.
+    default: false 
+  f5_ve_os_ssh_key:
+    type: string
+    label: F5 FW Root SSH Key Name
+    description: Name of key-pair to be installed on the CGNAT instances.
+    constraints:
+      - custom_constraint: nova.keypair
+  admin_password:
+    type: string
+    label: F5 VE Admin User Password
+    description: Password used to be assigned to F5 VE admin user.
+    hidden: true  
+  root_password:
+    type: string
+    label: F5 VE Root User Password
+    description: assword used to be assigned to F5 VE root user.
+    hidden: true
+  license:
+    type: string
+    label: Primary VE License Base Key
+    description: F5 TMOS License Basekey
+    hidden: true
+  external_network:
+    type: string
+    label: External Network Name
+    description: External network name where floating IP resides
+    constraints:
+      - custom_constraint: neutron.network
+  mgmt_network:
+    type: string
+    label: VE Management Network
+    description: Management Interface Network.
+    constraints:
+      - custom_constraint: neutron.network
+  network_1:
+    type: string
+    label: VE Network for the 1.1 Interface
+    description: TMM 1.1 network.
+    constraints:
+      - custom_constraint: neutron.network
+  network_1_name:
+    type: string
+    label: VE Network Name for the 1.1 Interface
+    description: TMM 1.1 network name.
+    default: network-1.1
+  network_2:
+    type: string
+    label: VE Network for the 1.2 Interface
+    description: TMM 1.2 network.
+    constraints:
+      - custom_constraint: neutron.network
+  network_2_name:
+    type: string
+    label: VE Network Name for the 1.2 Interface
+    description: TMM 1.2 network name.
+    default: network-1.2
+  default_gateway:
+    type: string
+    label: Default Gateway IP
+    default: None
+    description: Upstream Management Gateway IP Address for VE instances
+  bigip_un:
+    description: BigIP Username
+    label: BigIP Login Username
+    type: string
+    default: admin
+  pool_name:
+    description: Pool Name
+    label: Pool Name
+    type: string
+    default: pool1
+  vs_name:
+    description: Virtual Name
+    label: Virtual Name
+    type: string
+    default: cgnat-vs
+  vs_port:
+    description: Virtual Server Port on lb-for-cgnat
+    label: BIG-IP LB VS port
+    type: number
+    default: 0
+  lsn_ip:
+    description: IP selected for LSN for this CGNAT instance
+    label: CGNAT LSN IP
+    type: string
+
+parameter_groups:
+- parameters:
+  - ve_image
+  - ve_flavor
+  - use_config_drive
+- parameters:
+  - f5_ve_os_ssh_key
+  - admin_password
+  - root_password
+- parameters:
+  - bigip_un
+  - pool_name
+  - vs_port
+  - lsn_ip
+  - vs_name
+- parameters:
+  - license
+- parameters:
+  - external_network
+  - mgmt_network
+  - network_1
+  - network_1_name
+  - network_2
+  - network_2_name
+  - default_gateway  
+
+resources:
+  mgmt_port:
+    type: OS::Neutron::Port
+    properties:
+      network: {get_param: mgmt_network}
+      security_groups: [{ get_attr: [cgnat_mgmt_security_group, mgmt_security_group_id] }]
+  network_1_port:
+    type: OS::Neutron::Port
+    properties:
+      network: {get_param: network_1 }
+      security_groups: [{ get_attr: [cgnat_data_security_group, data_security_group_id] }]
+  floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: { get_param: external_network }
+      port_id: { get_resource: mgmt_port }
+  network_2_port:
+    type: OS::Neutron::Port
+    properties:
+      network: {get_param: network_2 }
+      security_groups: [{ get_attr: [cgnat_data_security_group, data_security_group_id] }]
+  cgnat_data_security_group:
+    type: http://10.1.10.80/bigip_data_security_group.yaml
+  cgnat_mgmt_security_group:
+    type: http://10.1.10.80/bigip_mgmt_security_group.yaml
+  ve_instance:
+    type: OS::Nova::Server
+    properties:
+      image: { get_param: ve_image }
+      flavor: { get_param: ve_flavor }
+      key_name: { get_param: f5_ve_os_ssh_key }
+      config_drive: { get_param: use_config_drive }
+      networks:
+        - port: {get_resource: mgmt_port}
+        - port: {get_resource: network_1_port}
+        - port: {get_resource: network_2_port}
+      user_data_format: RAW
+      user_data:
+        str_replace:
+          params:
+            __admin_password__: { get_param: admin_password }
+            __root_password__: { get_param: root_password }
+            __license__: { get_param: license }
+            __default_gateway__: { get_param: default_gateway }
+            __network_1__: { get_param: network_1 }
+            __network_1_name__: { get_param: network_1_name }
+            __network_2__: { get_param: network_2 }
+            __network_2_name__: { get_param: network_2_name }
+          template: |
+            {
+               "bigip": {
+                   "f5_ve_os_ssh_key_inject": "true",
+                   "change_passwords": "true",
+                   "admin_password": "__admin_password__",
+                   "root_password": "__root_password__",
+                   "license": {
+                       "basekey": "__license__",
+                       "host": "None",
+                       "port": "8080",
+                       "proxyhost": "None",
+                       "proxyport": "443",
+                       "proxyscripturl": "None"
+                   },
+                   "modules": {
+                       "auto_provision": "false",
+                       "ltm": "nominal"
+                   },
+                   "network": {
+                       "dhcp": "true",
+                       "selfip_prefix": "selfip-",
+                       "vlan_prefix": "network-",
+                       "routes": [
+                          {
+                            "destination": "0.0.0.0/0.0.0.0",
+                            "gateway": "__default_gateway__"
+                          }
+                       ],
+                       "interfaces": {
+                           "1.1": {
+                               "dhcp": "true",
+                               "selfip_allow_service": "default",
+                               "selfip_name": "selfip.__network_1_name__",
+                               "selfip_description": "Self IP address for BIG-IP __network_1_name__ network",
+                               "vlan_name": "__network_1_name__",
+                               "vlan_description": "VLAN for BIG-IP __network_1_name__ network traffic",
+                               "is_failover": "false",
+                               "is_sync": "false",
+                               "is_mirror_primary": "false",
+                               "is_mirror_secondary": "false"
+                           },
+                           "1.2": {
+                               "dhcp": "true",
+                               "selfip_allow_service": "default",
+                               "selfip_name": "selfip.__network_2_name__",
+                               "selfip_description": "Self IP address for BIG-IP __network_2_name__ network",
+                               "vlan_name": "__network_2_name__",
+                               "vlan_description": "VLAN for BIG-IP __network_2_name__ network traffic",
+                               "is_failover": "false",
+                               "is_sync": "false",
+                               "is_mirror_primary": "false",
+                               "is_mirror_secondary": "false"
+                           }
+                       }
+                   }
+               }
+            }
+
+  my_instance:
+    type: OS::Nova::Server
+    properties:
+      image: cirros
+      flavor: m1.small
+      key_name: AdminKey
+      network: Openstack_Mgmt
+      security_groups: bigip_mgmt_security_group
+      user_data_format: RAW
+      user_data:
+        str_replace:
+          params:
+            __wc_notify__: { get_attr: ['my_wait_handle', 'curl_cli'] }
+          template: |
+            #!/bin/bash -ex
+            sleep 1500
+            __wc_notify__ --data-binary '{"status": "SUCCESS"}'
+  my_wait_condition:
+    type: OS::Heat::WaitCondition
+    depends_on: my_instance
+    properties:
+      handle: { get_resource: my_wait_handle }
+      timeout: 1600
+      count: 1
+  my_wait_handle:
+    type: OS::Heat::WaitConditionHandle
+  bigip_cgnat:
+    type: F5::BigIP::Device
+    depends_on: my_wait_condition
+    properties:
+      ip: { get_attr: [mgmt_port, fixed_ips, 0, ip_address] }
+      username: { get_param: bigip_un }
+      password: { get_param: admin_password }
+  partition:
+    type: F5::Sys::Partition
+    depends_on: bigip_cgnat
+    properties:
+      name: Common
+      bigip_server: { get_resource: bigip_cgnat }
+  iapp_service:
+    type: F5::Sys::iAppService
+    depends_on: iapp_cgnat_template
+    properties:
+      name: cgnat_service
+      bigip_server: { get_resource: bigip_cgnat }
+      partition: { get_resource: partition }
+      template_name: cgnat_templ
+      traffic_group: /Common/traffic-group-local-only
+  iapp_cgnat_template:
+    type: F5::Sys::iAppCompositeTemplate
+    depends_on: partition
+    properties:
+      name: cgnat_templ
+      bigip_server: { get_resource: bigip_cgnat }
+      partition: { get_resource: partition }
+      requires_modules: [ ltm ]
+      implementation:
+        str_replace:
+          params:
+            __partition__: Common
+            __network_1__: { get_param: network_1 }
+            __network_1_name__: { get_param: network_1_name }
+            __network_2__: { get_param: network_2 }
+            __network_2_name__: { get_param: network_2_name }
+            __pool_name__: { get_param: pool_name }
+            __vs_name__: { get_param: vs_name }
+            __sip__: { get_attr: [network_2_port, fixed_ips, 0, ip_address] }
+            __vs_port__: { get_param: vs_port }
+          template: |
+            tmsh::modify {
+              sys feature-module cgnat {
+                enabled
+              }
+            }
+            tmsh::create {
+                net self /__partition__/selfip.__network_2_name__ {
+                  address __sip__
+                  traffic-group traffic-group-local-only
+                  vlan __network_2_name__ 
+                }
+            }
+
+            tmsh::create {
+                ltm lsn-pool /__partition__/__pool_name__
+                    egress-interfaces {
+                      /__partition__/__network_1_name__
+                    }  
+                      members replace-all-with {
+                        __lsn_ip__/32 {
+                            address __lsn_ip__
+                        }
+                    }
+            }
+
+            tmsh::create {
+                ltm virtual /__partition__/__vs_name__
+                    connection-limit 10
+                    destination /__partition__/__sip__:__vs_port__
+                    mask ffff:ffff:ffff:ffff::
+                    pool /__partition__/__pool_name__
+                    profiles replace-all-with 
+                        /__partition__/fastL4 { }
+                    }
+                    translate-address disabled
+                    translate-port disabled
+                    vlans replace-all-with {
+                        /__partition__/__network_2_name__
+                    }
+                    vlans-enabled
+            }
+
+            tmsh::create {
+                ltm virtual-address /__partition__/__vip__
+                    address __sip__
+                    arp enabled
+                    mask ffff:ffff:ffff:ffff::
+                    traffic-group traffic-group-1
+            }
+      presentation: |
+        section say_hello {
+            message intro "This template deploys a CGNAT virtual and a lsn pool member."
+        }
+
+outputs:
+  ve_instance_name:
+    description: Name of the instance
+    value: { get_attr: [ve_instance, name] }
+  ve_instance_id:
+    description: ID of the instance
+    value: { get_resource: ve_instance }
+  mgmt_ip:
+    description: The mgmt IP address of f5 ve instance
+    value: { get_attr: [mgmt_port, fixed_ips, 0, ip_address] }
+  mgmt_mac:
+    description: The mgmt MAC address of f5 VE instance
+    value: { get_attr: [mgmt_port, mac_address] }
+  mgmt_port:
+    description: The mgmt port id of f5 VE instance
+    value: { get_resource: mgmt_port }
+  network_1_ip:
+    description: The 1.1 Nonfloating SelfIP address of f5 ve instance
+    value: { get_attr: [network_1_port, fixed_ips, 0, ip_address] }
+  network_1_mac:
+    description: The 1.1 MAC address of f5 VE instance
+    value: { get_attr: [network_1_port, mac_address] }
+  network_1_port:
+    description: The 1.1 port id of f5 VE instance
+    value: { get_resource: network_1_port }
+  network_2_ip:
+    description: The 1.2 Nonfloating SelfIP address of f5 ve instance
+    value: { get_attr: [network_2_port, fixed_ips, 0, ip_address] }
+  network_2_mac:
+    description: The 1.2 MAC address of f5 VE instance
+    value: { get_attr: [network_2_port, mac_address] }
+  network_2_port:
+    description: The 1.2 port id of f5 VE instance
+    value: { get_resource: network_2_port }
+  floating_ip:
+    description: The Floating IP address of the VE
+    value: { get_attr: [floating_ip, floating_ip_address] }
+  virtual_ip:
+    description: The virtual IP address of the CGNAT
+    value: { get_attr: [network_2_port, fixed_ips, 0, ip_address] }

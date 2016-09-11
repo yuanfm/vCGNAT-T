@@ -1,0 +1,137 @@
+heat_template_version: 2015-04-30
+description: Resource group policy for deploying 2 F5 BIG-IP vCGNAT VNF in scale
+
+parameters:
+  ve_image:
+    type: string
+    label: F5 VE Image
+    description: The image to be used on the compute instance.
+    constraints:
+      - custom_constraint: glance.image 
+  ve_flavor:
+    type: string
+    label: F5 VE Flavor
+    description: Type of instance (flavor) to be used for the VE.
+    default: m1.medium
+    constraints:
+      - custom_constraint: nova.flavor
+  use_config_drive:
+    type: boolean
+    label: Use Config Drive
+    description: Use config drive to provider meta and user data.
+    default: false 
+  f5_ve_os_ssh_key:
+    type: string
+    label: F5 FW Root SSH Key Name
+    description: Name of key-pair to be installed on the FW instances.
+    constraints:
+      - custom_constraint: nova.keypair
+  admin_password:
+    type: string
+    label: F5 VE Admin User Password
+    description: Password used to perform image import services
+    hidden: true  
+  root_password:
+    type: string
+    label: F5 VE Root User Password
+    description: Password used to perform image import services
+    hidden: true
+  license:
+    type: comma_delimited_list
+    label: Primary VE License Base Key list
+    description: F5 TMOS License Basekey list 
+    default: [IGHZR-RGJDH-VHQZN-MOCHK-MPECVMG, JDTUG-ZPJYE-AYWWQ-CKDKD-UXZHRHI, ZZSEN-DOEFJ-YETLK-XDSUJ-VHWDKKQ]
+    hidden: true
+  external_network:
+    type: string
+    label: External Network Name
+    description: External network name where floating IP resides
+    default: test
+    constraints:
+      - custom_constraint: neutron.network
+  mgmt_network:
+    type: string
+    label: VE Management Network
+    description: Management Interface Network.
+    default: test
+    constraints:
+      - custom_constraint: neutron.network
+  network_1:
+    type: string
+    label: VE Network for the 1.1 Interface
+    description: TMM 1.1 network.
+    default: test
+    constraints:
+      - custom_constraint: neutron.network
+  network_1_name:
+    type: string
+    label: VE Network Name for the 1.1 Interface
+    description: TMM 1.1 network name.
+    default: network-1.1
+  network_2:
+    type: string
+    label: VE Network for the 1.2 Interface
+    description: TMM 1.2 network.
+    default: test
+    constraints:
+      - custom_constraint: neutron.network
+  network_2_name:
+    type: string
+    label: VE Network Name for the 1.2 Interface
+    description: TMM 1.2 network name.
+    default: network-1.2
+  default_gateway:
+    type: string
+    label: Default Gateway IP
+    default: None
+    description: Upstream Gateway IP Address for VE instances
+  cluster_size:
+    type: number
+    label: Cluster size
+    description: Number of instances in cluster.
+    default: 2
+
+parameter_groups:
+- parameters:
+  - ve_image
+  - ve_flavor
+  - use_config_drive
+- parameters:
+  - f5_ve_os_ssh_key
+  - admin_password
+  - root_password
+- parameters:
+  - license
+- parameters:
+  - external_network
+  - mgmt_network
+  - network_1
+  - network_1_name
+  - network_2
+  - network_2_name
+  - default_gateway  
+  - cluster_size
+
+
+resources:
+  tiny_cluster:
+    type: OS::Heat::ResourceGroup
+    properties:
+      count: { get_param: cluster_size }
+      resource_def:
+        type: OS::Nova::Server::CGNAT
+        properties:
+          ve_flavor: {get_param: ve_flavor}
+          ve_image: {get_param: ve_image}
+          f5_ve_os_ssh_key: {get_param: f5_ve_os_ssh_key}
+          admin_password: {get_param: admin_password}
+          root_password: {get_param: root_password}
+          license: {get_param: license}
+          external_network: {get_param: external_network}
+          mgmt_network: {get_param: mgmt_network}
+          network_1: {get_param: network_1}
+          network_1_name: {get_param: network_1_name}
+          network_2: {get_param: network_1_name}
+          network_2_name: {get_param: network_2}
+          default_gateway: {get_param: network_2_name}
+

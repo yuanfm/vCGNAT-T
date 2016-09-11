@@ -1,0 +1,5 @@
+heat_template_version: 2015-04-30
+description: Environment setting to enfold the single BIG-IP vCGNAT VNF server resource definition
+
+resource_registry:  
+    "OS::Nova::Server::CGNAT":  http://10.1.10.80/StandaloneCGNAT.yaml
