@@ -1,4 +1,5 @@
-heat_template_version: 2015-04-30
+heat_template_version: 2015-10-15
+
 description: Resource group policy for deploying 2 F5 BIG-IP vCGNAT VNF in scale
 
 parameters:
@@ -36,11 +37,11 @@ parameters:
     label: F5 VE Root User Password
     description: Password used to perform image import services
     hidden: true
-  license_list:
+  license_list: 
     type: comma_delimited_list
-    label: Primary VE License Base Key list
-    description: F5 TMOS License Basekey list 
-    default: ["GMFLT-SORUG-ADVJT-NYKYC-YRVHYXR", "GREUV-NOVKG-GVLZZ-QAVIE-QQZOMGA", "ZULOY-JYIUA-WGWLV-DITXY-UZWEMNT"]
+    label: Primary VE License Base Key
+    description: F5 TMOS License Basekey
+    default: ["ZULOY-JYIUA-WGWLV-DITXY-UZWEMNT", "GREUV-NOVKG-GVLZZ-QAVIE-QQZOMGA"]
     hidden: true
   external_network:
     type: string
@@ -59,7 +60,7 @@ parameters:
   network_1:
     type: string
     label: VE Network for the 1.1 Interface
-    description: TMM 1.1 network.
+    description: TMM 1.1 network. This is the Subscriber IPv6 network.
     default: test
     constraints:
       - custom_constraint: neutron.network
@@ -67,11 +68,11 @@ parameters:
     type: string
     label: VE Network Name for the 1.1 Interface
     description: TMM 1.1 network name.
-    default: network-1.1
+    default: Subscriber
   network_2:
     type: string
     label: VE Network for the 1.2 Interface
-    description: TMM 1.2 network.
+    description: TMM 1.2 network. This is the Internet IPv4 network.
     default: test
     constraints:
       - custom_constraint: neutron.network
@@ -79,17 +80,26 @@ parameters:
     type: string
     label: VE Network Name for the 1.2 Interface
     description: TMM 1.2 network name.
-    default: network-1.2
+    default: Internet
   default_gateway:
     type: string
     label: Default Gateway IP
-    description: Upstream Gateway IP Address for VE instances
-    default: 10.255.255.1
-  cluster_size:
-    type: number
-    label: Cluster size
-    description: Number of instances in cluster.
-    default: 1
+    default: None
+    description: Upstream Internet Gateway IP Address for VE instances
+  config_cgnat:
+    type: boolean
+    label: Configure CGNAT
+    description: Enable CGNAT configuration.
+    default: false 
+  lsn_pool:
+    type: string
+    label: LSN Pool
+    description: CGNAT LSN Pool.  Requires Address/Prefix. i.e. 202.50.176.0/28
+  pref64:
+    type: string
+    label: Pref64
+    description: CGNAT Pref64 i.e. "2002:23:15::"
+    default: "2001:8000:100:464::"
 
 parameter_groups:
 - parameters:
@@ -109,11 +119,37 @@ parameter_groups:
   - network_1_name
   - network_2
   - network_2_name
-  - default_gateway  
-  - cluster_size
-
+  - default_gateway
+- parameters:
+  - config_cgnat
+  - lsn_pool
+  - pref64
 
 resources:
+  bigip_data_security_group:
+    type: https://github.com/yuanfm/vCGNAT-Telstra/blob/my-branch/bigip_data_allowall_security_group.yaml
+  bigip_mgmt_security_group:
+    type: https://github.com/yuanfm/vCGNAT-Telstra/blob/my-branch/bigip_mgmt_security_group.yaml
+  mgmt_port:
+    type: OS::Neutron::Port
+    properties:
+      network: {get_param: mgmt_network}
+      security_groups: [{ get_attr: [bigip_mgmt_security_group, mgmt_security_group_id] }]
+  network_1_port:
+    type: OS::Neutron::Port
+    properties:
+      network: {get_param: network_1 }
+      security_groups: [{ get_attr: [bigip_data_security_group, data_security_group_id] }]
+  floating_ip:
+    type: OS::Neutron::FloatingIP
+    properties:
+      floating_network: { get_param: external_network }
+      port_id: { get_resource: mgmt_port }
+  network_2_port:
+    type: OS::Neutron::Port
+    properties:
+      network: {get_param: network_2 }
+      security_groups: [{ get_attr: [bigip_data_security_group, data_security_group_id] }]
   cgn_group:
     type: OS::Heat::AutoScalingGroup
     properties:
@@ -121,22 +157,103 @@ resources:
       desired_capacity: { get_param: cluster_size }
       max_size: 2
       min_size: 1
-      resource_def:
-        type: Lib::JOY::CGN
+      resource: 
+        type: OS::Nova::Server
         properties:
-          ve_flavor: {get_param: ve_flavor}
-          ve_image: {get_param: ve_image}
-          f5_ve_os_ssh_key: {get_param: f5_ve_os_ssh_key}
-          admin_password: {get_param: admin_password}
-          root_password: {get_param: root_password}
-          license: {get_param: license_list}
-          external_network: {get_param: external_network}
-          mgmt_network: {get_param: mgmt_network}
-          network_1: {get_param: network_1}
-          network_1_name: {get_param: network_1_name}
-          network_2: {get_param: network_2}
-          network_2_name: {get_param: network_2_name}
-          default_gateway: {get_param: default_gateway}
+          image: { get_param: ve_image }
+          flavor: { get_param: ve_flavor }
+          key_name: { get_param: f5_ve_os_ssh_key }
+          config_drive: { get_param: use_config_drive }
+          networks:
+            - port: {get_resource: mgmt_port}
+            - port: {get_resource: network_1_port}
+            - port: {get_resource: network_2_port}
+          user_data_format: RAW
+          user_data:
+            str_replace:
+              params:
+                __admin_password__: { get_param: admin_password }
+                __root_password__: { get_param: root_password }
+                __license__: { get_param: license_list }
+                __default_gateway__: { get_param: default_gateway }
+                __network_1__: { get_attr: [network_1_port, fixed_ips, 0, ip_address] }
+                __network_1_name__: { get_param: network_1_name }
+                __network_2__: { get_param: network_2 }
+                __network_2_name__: { get_param: network_2_name }
+                __config_cgnat__: { get_param: config_cgnat }
+                __partition__: Common
+                __lsn_pool__: { get_param: lsn_pool }
+                __pref64__: { get_param: pref64 }
+                __v6_netmask__: "ffff:ffff:ffff:ffff::"
+                __pref64_netmask__: "ffff:ffff:ffff:ffff:ffff:ffff::"
+              template: |
+                {
+                    "bigip": {
+                        "f5_ve_os_ssh_key_inject": "true",
+                        "change_passwords": "true",
+                        "admin_password": "__admin_password__",
+                        "root_password": "__root_password__",
+                        "license": {
+                            "basekey": "__license__",
+                            "host": "None",
+                            "port": "8080",
+                            "proxyhost": "None",
+                            "proxyport": "443",
+                            "proxyscripturl": "None"
+                        },
+                        "modules": {
+                            "auto_provision": "false",
+                            "ltm": "nominal"
+                        },
+                        "network": {
+                            "dhcp": "true",
+                            "selfip_prefix": "selfip-",
+                            "vlan_prefix": "network-",
+                            "routes": [
+                               {
+                                 "destination": "0.0.0.0/0.0.0.0",
+                                 "gateway": "__default_gateway__"
+                               }
+                            ],
+                            "interfaces": {
+                                "1.1": {
+                                    "dhcp": "false",
+                                    "address": "__network_1__",
+                                    "netmask": "__v6_netmask__",
+                                    "mtu": "1400",
+                                    "selfip_allow_service": "default",
+                                    "selfip_name": "selfip.__network_1_name__",
+                                    "selfip_description": "Self IP address for BIG-IP __network_1_name__ network",
+                                    "vlan_name": "__network_1_name__",
+                                    "vlan_description": "VLAN for BIG-IP __network_1_name__ network traffic",
+                                    "is_failover": "false",
+                                    "is_sync": "false",
+                                    "is_mirror_primary": "false",
+                                    "is_mirror_secondary": "false"
+                                },
+                                "1.2": {
+                                    "dhcp": "true",
+                                    "selfip_allow_service": "default",
+                                    "selfip_name": "selfip.__network_2_name__",
+                                    "selfip_description": "Self IP address for BIG-IP __network_2_name__ network",
+                                    "vlan_name": "__network_2_name__",
+                                    "vlan_description": "VLAN for BIG-IP __network_2_name__ network traffic",
+                                    "is_failover": "false",
+                                    "is_sync": "false",
+                                    "is_mirror_primary": "false",
+                                    "is_mirror_secondary": "false"
+                                }
+                            }
+                        },
+                        "config": {
+                             "config_cgnat": "__config_cgnat__",
+                             "partition": "__partition__",
+                             "lsn_pool": "__lsn_pool__",
+                             "pref64": "__pref64__",
+                             "pref64_netmask": "__pref64_netmask__"
+                        }
+                    }
+                 }
 
   cgn_scaleup_policy:
     type: OS::Heat::ScalingPolicy
@@ -178,10 +295,3 @@ resources:
         - {get_attr: [cgn_scaledown_policy, alarm_url]}
       matching_metadata: {'metadata.user_metadata.stack': {get_param: "OS::stack_id"}}
       comparison_operator: lt
-  monitor:
-    type: OS::Neutron::HealthMonitor
-    properties:
-      type: TCP
-      delay: 5
-      max_retries: 5
-      timeout: 5

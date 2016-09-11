@@ -1,0 +1,2 @@
+resource_registry:  
+    "OS::Nova::Server:CGN": deploy_vcgnat_3nic_peter.yaml

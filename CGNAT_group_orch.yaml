@@ -1,4 +1,5 @@
-heat_template_version: 2015-04-30
+heat_template_version: 2015-10-15
+
 description: Resource group policy for deploying 2 F5 BIG-IP vCGNAT VNF in scale
 
 parameters:
@@ -40,7 +41,7 @@ parameters:
     type: comma_delimited_list
     label: Primary VE License Base Key list
     description: F5 TMOS License Basekey list 
-    default: ["GMFLT-SORUG-ADVJT-NYKYC-YRVHYXR", "GREUV-NOVKG-GVLZZ-QAVIE-QQZOMGA", "ZULOY-JYIUA-WGWLV-DITXY-UZWEMNT"]
+    default: ["GMFLT-SORUG-ADVJT-NYKYC-YRVHYXR", "GREUV-NOVKG-GVLZZ-QAVIE-QQZOMGA"]
     hidden: true
   external_network:
     type: string
@@ -89,7 +90,7 @@ parameters:
     type: number
     label: Cluster size
     description: Number of instances in cluster.
-    default: 2
+    default: 1
 
 parameter_groups:
 - parameters:
@@ -119,7 +120,7 @@ resources:
     properties:
       count: { get_param: cluster_size }
       resource_def:
-        type: OS::Nova::Server::CGNAT
+        type: OS::Nova::Server:CGN
         properties:
           ve_flavor: {get_param: ve_flavor}
           ve_image: {get_param: ve_image}
