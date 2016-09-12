@@ -139,7 +139,7 @@ resources:
     type: OS::Neutron::Port
     properties:
       network: {get_param: network_1 }
-      security_groups: [{ get_attr: [bigip_data_security_group, data_security_group_id] }]
+      port_security_enabled: false
   floating_ip:
     type: OS::Neutron::FloatingIP
     properties:
@@ -149,7 +149,7 @@ resources:
     type: OS::Neutron::Port
     properties:
       network: {get_param: network_2 }
-      security_groups: [{ get_attr: [bigip_data_security_group, data_security_group_id] }]
+      port_security_enabled: false
   cgn_group:
     type: OS::Heat::AutoScalingGroup
     properties:
@@ -174,7 +174,7 @@ resources:
               params:
                 __admin_password__: { get_param: admin_password }
                 __root_password__: { get_param: root_password }
-                __license__: { get_param: license_list }
+                __license__:  { "Fn::Select" : [ "0", license_list ] }
                 __default_gateway__: { get_param: default_gateway }
                 __network_1__: { get_attr: [network_1_port, fixed_ips, 0, ip_address] }
                 __network_1_name__: { get_param: network_1_name }
