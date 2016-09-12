@@ -1,0 +1,375 @@
+heat_template_version: 2015-10-15
+
+description: Resource group policy for deploying 2 F5 BIG-IP vCGNAT VNF in scale
+
+parameters:
+  ve_image:
+    type: string
+    label: F5 VE Image
+    description: The image to be used on the compute instance.
+    constraints:
+      - custom_constraint: glance.image 
+  ve_flavor:
+    type: string
+    label: F5 VE Flavor
+    description: Type of instance (flavor) to be used for the VE.
+    default: m1.medium
+    constraints:
+      - custom_constraint: nova.flavor
+  use_config_drive:
+    type: boolean
+    label: Use Config Drive
+    description: Use config drive to provider meta and user data.
+    default: false 
+  f5_ve_os_ssh_key:
+    type: string
+    label: F5 FW Root SSH Key Name
+    description: Name of key-pair to be installed on the FW instances.
+    constraints:
+      - custom_constraint: nova.keypair
+  admin_password:
+    type: string
+    label: F5 VE Admin User Password
+    description: Password used to perform image import services
+    hidden: true  
+  root_password:
+    type: string
+    label: F5 VE Root User Password
+    description: Password used to perform image import services
+    hidden: true
+  license_list: 
+    type: string
+    label: Primary VE License Base Key
+    description: F5 TMOS License Basekey
+    default: HWYLO-GFPNN-RUJMO-URBSY-XQCRKBM
+    hidden: true
+  external_network:
+    type: string
+    label: External Network Name
+    description: External network name where floating IP resides
+    default: test
+    constraints:
+      - custom_constraint: neutron.network
+  mgmt_network:
+    type: string
+    label: VE Management Network
+    description: Management Interface Network.
+    default: test
+    constraints:
+      - custom_constraint: neutron.network
+  network_1:
+    type: string
+    label: VE Network for the 1.1 Interface
+    description: TMM 1.1 network. This is the Subscriber IPv6 network.
+    default: test
+    constraints:
+      - custom_constraint: neutron.network
+  network_1_name:
+    type: string
+    label: VE Network Name for the 1.1 Interface
+    description: TMM 1.1 network name.
+    default: Subscriber
+  network_2:
+    type: string
+    label: VE Network for the 1.2 Interface
+    description: TMM 1.2 network. This is the Internet IPv4 network.
+    default: test
+    constraints:
+      - custom_constraint: neutron.network
+  network_2_name:
+    type: string
+    label: VE Network Name for the 1.2 Interface
+    description: TMM 1.2 network name.
+    default: Internet
+  default_gateway:
+    type: string
+    label: Default Gateway IP
+    default: None
+    description: Upstream Internet Gateway IP Address for VE instances
+  config_cgnat:
+    type: boolean
+    label: Configure CGNAT
+    description: Enable CGNAT configuration.
+    default: false 
+  lsn_pool:
+    type: string
+    label: LSN Pool
+    description: CGNAT LSN Pool.  Requires Address/Prefix. i.e. 202.50.176.0/28
+  pref64:
+    type: string
+    label: Pref64
+    description: CGNAT Pref64 i.e. "2002:23:15::"
+    default: "2001:8000:100:464::"
+  cluster_size:
+    type: number
+    label: Cluster Size
+    default: 1
+    description: Define the number of vCGNAT instances to scale out to. i.e. 2
+  vltm:
+    description: vLTM Management IP Address
+    label: vLTM IP Address
+    type: string
+    default: "192.168.111.15"
+  bigip_un:
+    description: vLTM Username
+    label: vLTM Login Username
+    type: string
+    default: admin
+  bigip_pw:
+    description: vLTM Password
+    label: vLTM Login Password
+    type: string
+    hidden: True
+  pool_name:
+    description: vCGN Pool Name
+    label: vCGN Pool Name
+    type: string
+    default: vCGN_pool
+
+parameter_groups:
+- parameters:
+  - ve_image
+  - ve_flavor
+  - use_config_drive
+- parameters:
+  - f5_ve_os_ssh_key
+  - admin_password
+  - root_password
+- parameters:
+  - license_list
+- parameters:
+  - external_network
+  - mgmt_network
+  - network_1
+  - network_1_name
+  - network_2
+  - network_2_name
+  - default_gateway
+- parameters:
+  - config_cgnat
+  - lsn_pool
+  - pref64
+  - cluster_size
+- parameters:
+  - vltm
+  - bigip_un
+  - bigip_pw
+  - pool_name
+
+resources:
+  cgn_group:
+    type: OS::Heat::AutoScalingGroup
+    properties:
+      cooldown: 120
+      desired_capacity: { get_param: cluster_size }
+      max_size: 2
+      min_size: 1
+      resource: {
+        mgmt_port:
+          type: OS::Neutron::Port
+          properties:
+            network: {get_param: mgmt_network}
+            port_security_enabled: False
+        network_1_port:
+          type: OS::Neutron::Port
+          properties:
+            network: {get_param: network_1 }
+            port_security_enabled: False
+        floating_ip:
+          type: OS::Neutron::FloatingIP
+          properties:
+            floating_network: { get_param: external_network }
+            port_id: { get_resource: mgmt_port }
+        network_2_port:
+          type: OS::Neutron::Port
+          properties:
+            network: {get_param: network_2 }
+            port_security_enabled: False
+        vcgn: 
+          type: OS::Nova::Server
+          properties:
+            image: { get_param: ve_image }
+            flavor: { get_param: ve_flavor }
+            key_name: { get_param: f5_ve_os_ssh_key }
+            config_drive: { get_param: use_config_drive }
+            networks:
+              - port: {get_resource: mgmt_port}
+              - port: {get_resource: network_1_port}
+              - port: {get_resource: network_2_port}
+            metadata: {"metering.stack": {get_param: "OS::stack_id"}}
+            user_data_format: RAW
+            user_data:
+              str_replace:
+                params:
+                  __admin_password__: { get_param: admin_password }
+                  __root_password__: { get_param: root_password }
+                  __license__: { get_param: license_list }
+                  __default_gateway__: { get_param: default_gateway }
+                  __network_1__: { get_attr: [network_1_port, fixed_ips, 0, ip_address] }
+                  __network_1_name__: { get_param: network_1_name }
+                  __network_2__: { get_param: network_2 }
+                  __network_2_name__: { get_param: network_2_name }
+                  __config_cgnat__: { get_param: config_cgnat }
+                  __partition__: Common
+                  __lsn_pool__: { get_attr: [network_2_port, fixed_ips, 0, ip_address] }
+                  __pref64__: { get_param: pref64 }
+                  __v6_netmask__: "ffff:ffff:ffff:ffff::"
+                  __pref64_netmask__: "ffff:ffff:ffff:ffff:ffff:ffff::"
+                template: |
+                  {
+                      "bigip": {
+                          "f5_ve_os_ssh_key_inject": "true",
+                          "change_passwords": "true",
+                          "admin_password": "__admin_password__",
+                          "root_password": "__root_password__",
+                          "license": {
+                            "basekey": "__license__",
+                            "host": "None",
+                            "port": "8080",
+                            "proxyhost": "None",
+                            "proxyport": "443",
+                            "proxyscripturl": "None"
+                          },
+                          "modules": {
+                              "auto_provision": "false",
+                              "ltm": "nominal"
+                          },
+                          "network": {
+                              "dhcp": "true",
+                              "selfip_prefix": "selfip-",
+                              "vlan_prefix": "network-",
+                              "routes": [
+                                 {
+                                   "destination": "0.0.0.0/0.0.0.0",
+                                   "gateway": "__default_gateway__"
+                                 }
+                              ], 
+                              "interfaces": {
+                                  "1.1": {
+                                      "dhcp": "false",
+                                      "address": "__network_1__",
+                                      "netmask": "__v6_netmask__",
+                                      "mtu": "1400",
+                                      "selfip_allow_service": "default",
+                                      "selfip_name": "selfip.__network_1_name__",
+                                      "selfip_description": "Self IP address for BIG-IP __network_1_name__ network",
+                                      "vlan_name": "__network_1_name__",
+                                      "vlan_description": "VLAN for BIG-IP __network_1_name__ network traffic",
+                                      "is_failover": "false",
+                                      "is_sync": "false",
+                                      "is_mirror_primary": "false",
+                                      "is_mirror_secondary": "false"
+                                  },
+                                  "1.2": {
+                                      "dhcp": "true",
+                                      "selfip_allow_service": "default",
+                                      "selfip_name": "selfip.__network_2_name__",
+                                      "selfip_description": "Self IP address for BIG-IP __network_2_name__ network",
+                                      "vlan_name": "__network_2_name__",
+                                      "vlan_description": "VLAN for BIG-IP __network_2_name__ network traffic",
+                                      "is_failover": "false",
+                                      "is_sync": "false",
+                                      "is_mirror_primary": "false",
+                                      "is_mirror_secondary": "false"
+                                  }
+                              }
+                          },
+                          "config": {
+                               "config_cgnat": "__config_cgnat__",
+                               "partition": "__partition__",
+                               "lsn_pool": "__lsn_pool__/32",
+                               "pref64": "__pref64__",
+                               "pref64_netmask": "__pref64_netmask__"
+                          }
+                      }
+                   }
+        bigip_ltm:
+          type: F5::BigIP::Device
+          properties:
+            ip: { get_param: vltm }
+            username: { get_param: bigip_un }
+            password: { get_param: bigip_pw }
+        partition:
+          type: F5::Sys::Partition
+          depends_on: bigipLtm
+          properties:
+            name: Common
+            bigip_server: { get_resource: bigip_ltm }
+        iappService:
+          type: F5::Sys::iAppService
+          depends_on: iappTemplate
+          properties:
+            name: lb_service
+            bigip_server: { get_resource: bigip_ltm }
+            partition: { get_resource: partition }
+            template_name: vCGN_pool_update
+          traffic_group: /Common/traffic-group-local-only
+        iappTemplate:
+         type: F5::Sys::iAppCompositeTemplate
+        depends_on: partition
+        properties:
+          name: vCGN_pool_update
+          bigip_server: { get_resource: bigipLtm }
+          partition: { get_resource: partition }
+          requires_modules: [ ltm ]
+          implementation:
+            str_replace:
+              params:
+                __partition__: Common
+                __pool_name__: { get_param: pool_name }
+                __rs_ip__: { get_attr: [network_1_port, fixed_ips, 0, ip_address] }
+              template: |
+                tmsh::modify {
+                    ltm pool /__partition__/__pool_name__
+                        members add {
+                            __rs_ip__.0 {
+                                address __rs_ip__
+                            }
+                        }
+                }
+          presentation: |
+            section say_hello {
+              message intro "This template modify vCGN_pool with IPv6 Address of vCGN cluster."
+            }
+                  }
+
+  cgn_scaleup_policy:
+    type: OS::Heat::ScalingPolicy
+    properties:
+      adjustment_type: change_in_capacity
+      auto_scaling_group_id: { get_resource: cgn_group }
+      cooldown: 60
+      scaling_adjustment: 1
+  cgn_scaledown_policy:
+    type: OS::Heat::ScalingPolicy
+    properties:
+      adjustment_type: change_in_capacity
+      auto_scaling_group_id: { get_resource: cgn_group }
+      cooldown: 60
+      scaling_adjustment: -1
+  cpu_alarm_high:
+    type: OS::Ceilometer::Alarm
+    properties:
+      description: Scale-up if the average CPU > 50% for 2 minute
+      meter_name: cpu_util
+      statistic: avg
+      period: 60
+      evaluation_periods: 1
+      threshold: 30
+      alarm_actions:
+        - {get_attr: [cgn_scaleup_policy, alarm_url]}
+      matching_metadata: {'metadata.user_metadata.stack': {get_param: "OS::stack_id"}}
+      comparison_operator: gt
+  cpu_alarm_low:
+    type: OS::Ceilometer::Alarm
+    properties:
+      description: Scale-down if the average CPU < 15% for 2 minutes
+      meter_name: cpu_util
+      statistic: avg
+      period: 60
+      evaluation_periods: 1
+      threshold: 15
+      alarm_actions:
+        - {get_attr: [cgn_scaledown_policy, alarm_url]}
+      matching_metadata: {'metadata.user_metadata.stack': {get_param: "OS::stack_id"}}
+      comparison_operator: lt
