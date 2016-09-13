@@ -109,7 +109,7 @@ parameters:
     description: vLTM Management IP Address
     label: vLTM IP Address
     type: string
-    default: "192.168.111.15"
+    default: "172.22.56.84"
   bigip_un:
     description: vLTM Username
     label: vLTM Login Username
