@@ -148,7 +148,7 @@ parameter_groups:
   - bigip_un
   - bigip_pw
   - pool_name
-  
+
 resources:
   mgmt_port:
     type: OS::Neutron::Port
@@ -355,6 +355,6 @@ outputs:
   network_2_port:
     description: The 1.2 port id of f5 VE instance
     value: { get_resource: network_2_port }
-  stack_id:
+  OS::stack_id:
     description: The OS stack_id used for metering purpose
-    value: { get_param: "OS::stack_id"}
+    value: { get_resource: vCGN }
