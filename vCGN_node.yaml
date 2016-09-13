@@ -181,7 +181,6 @@ resources:
         - port: {get_resource: mgmt_port}
         - port: {get_resource: network_1_port}
         - port: {get_resource: network_2_port}
-      metadata: {"metering.stack": {get_param: "OS::stack_id"}}
       user_data_format: RAW
       user_data:
         str_replace:
