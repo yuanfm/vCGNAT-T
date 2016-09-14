@@ -9,7 +9,7 @@ parameters:
     description: The image to be used on the compute instance.
     constraints:
       - custom_constraint: glance.image 
-  ve_flavor:
+  flavor:
     type: string
     label: F5 VE Flavor
     description: Type of instance (flavor) to be used for the VE.
@@ -174,7 +174,7 @@ resources:
     type: OS::Nova::Server
     properties:
       image: { get_param: ve_image }
-      flavor: { get_param: ve_flavor }
+      flavor: { get_param: flavor }
       key_name: { get_param: f5_ve_os_ssh_key }
       config_drive: { get_param: use_config_drive }
       networks:
