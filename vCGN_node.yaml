@@ -290,7 +290,7 @@ resources:
       period: 180
       evaluation_periods: 1
       threshold: 50
-      matching_metadata: {'metadata.user_metadata.stack': {get_param: "OS::stack_id"]}}
+      matching_metadata: {'metadata.user_metadata.stack': {get_param: "OS::stack_id"}}
       comparison_operator: lt
   bigip_ltm:
     type: F5::BigIP::Device
