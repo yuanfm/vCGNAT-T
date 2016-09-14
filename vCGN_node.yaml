@@ -321,7 +321,7 @@ outputs:
   ve_instance_name:
     description: Name of the instance
     value: { get_attr: [vCGN, name] }
-  ve_instance_id:
+  OS::stack_id:
     description: ID of the instance
     value: { get_resource: vCGN }
   floating_ip:
