@@ -181,6 +181,7 @@ resources:
         - port: {get_resource: mgmt_port}
         - port: {get_resource: network_1_port}
         - port: {get_resource: network_2_port}
+      metadata: {"metering.stack": {get_param: "OS::stack_id"}}
       user_data_format: RAW
       user_data:
         str_replace:
@@ -321,7 +322,7 @@ outputs:
   ve_instance_name:
     description: Name of the instance
     value: { get_attr: [vCGN, name] }
-  OS::stack_id:
+  ve_instance_id:
     description: ID of the instance
     value: { get_resource: vCGN }
   floating_ip:
