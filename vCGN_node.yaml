@@ -275,7 +275,7 @@ resources:
       description: Monitor for CPU > 80% for 2 minute
       meter_name: cpu_util
       statistic: avg
-      period: 120
+      period: 180
       evaluation_periods: 1
       threshold: 80
       matching_metadata: {'metadata.user_metadata.stack': {get_param: "OS::stack_id"}}
@@ -289,7 +289,7 @@ resources:
       statistic: avg
       period: 180
       evaluation_periods: 1
-      threshold: 50
+      threshold: 45
       matching_metadata: {'metadata.user_metadata.stack': {get_param: "OS::stack_id"}}
       comparison_operator: lt
   bigip_ltm:
