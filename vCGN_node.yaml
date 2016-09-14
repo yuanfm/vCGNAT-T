@@ -268,7 +268,30 @@ resources:
                     }
                 }
             }
-
+  cpu_alarm_high:
+    type: OS::Ceilometer::Alarm
+    depends_on: vCGN
+    properties:
+      description: Monitor for CPU > 80% for 2 minute
+      meter_name: cpu_util
+      statistic: avg
+      period: 120
+      evaluation_periods: 1
+      threshold: 80
+      matching_metadata: {'metadata.user_metadata.stack': {get_param: "OS::stack_id"}}
+      comparison_operator: gt
+  cpu_alarm_low:
+    type: OS::Ceilometer::Alarm
+    depends_on: vCGN
+    properties:
+      description: Monitor for average CPU < 50% for 3 minutes
+      meter_name: cpu_util
+      statistic: avg
+      period: 180
+      evaluation_periods: 1
+      threshold: 50
+      matching_metadata: {'metadata.user_metadata.stack': {get_param: "OS::stack_id"]}}
+      comparison_operator: lt
   bigip_ltm:
     type: F5::BigIP::Device
     properties:
