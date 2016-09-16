@@ -308,16 +308,16 @@ resources:
     type: F5::Sys::iAppService
     depends_on: iapp_template
     properties:
-      name: lb_service
+      name: { get_attr: [mgmt_port, name] }
       bigip_server: { get_resource: bigip_ltm }
       partition: { get_resource: partition }
-      template_name: vCGN_Pool_Update
+      template_name: { get_attr: [mgmt_port, name] }
       traffic_group: /Common/traffic-group-local-only
   iapp_template:
     type: F5::Sys::iAppCompositeTemplate
     depends_on: partition
     properties:
-      name: vCGN_Pool_Update
+      name: { get_attr: [mgmt_port, name] }
       bigip_server: { get_resource: bigip_ltm }
       partition: { get_resource: partition }
       requires_modules: [ ltm ]
