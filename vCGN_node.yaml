@@ -154,10 +154,12 @@ resources:
     type: OS::Neutron::Port
     properties:
       network: {get_param: mgmt_network}
+      port_security_enabled: False
   network_1_port:
     type: OS::Neutron::Port
     properties:
       network: {get_param: network_1 }
+      port_security_enabled: False
   floating_ip:
     type: OS::Neutron::FloatingIP
     properties:
@@ -167,6 +169,7 @@ resources:
     type: OS::Neutron::Port
     properties:
       network: {get_param: network_2 }
+      port_security_enabled: False
   vCGN:
     type: OS::Nova::Server
     properties:
